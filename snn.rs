@@ -1,3 +1,5 @@
+#![feature(core)]
+
 use std::num::Float;
 use std::collections::binary_heap::BinaryHeap; // pq
 use std::cmp::Ordering;
@@ -46,6 +48,7 @@ impl Neuron {
 
     fn spike(&mut self, timestamp: time, weight: float, cfg: &NeuronConfig) -> NeuronResult {
         assert!(timestamp >= self.last_spike_time);
+        assert!(cfg.tau_m >= 0.0);
 
         // Return early if still in absolute refractory period (arp)
         if timestamp < self.arp_end {
@@ -122,10 +125,17 @@ impl Ord for Event {
 fn ms(n: time) -> time { n * 1000 }
 fn us(n: time) -> time { n }
 
+#[derive(Debug)]
+struct Synapse {
+    delay:  time,
+    weight: float,
+    post_neuron: usize,
+}
 
 struct Net {
     neurons: Vec<Neuron>,
     neuron_configs: Vec<NeuronConfig>,
+    synapses: Vec<Vec<Synapse>>,
     events: BinaryHeap<Event>,
 }
 
@@ -134,6 +144,7 @@ impl Net {
         Net {
             neurons: vec![],
             neuron_configs: vec![],
+            synapses: vec![],
             events: BinaryHeap::new(),
         }
     }
@@ -147,11 +158,28 @@ impl Net {
     /// Returns the neuron_id
     fn create_neuron(&mut self, config_id: usize) -> usize {
         self.neurons.push(Neuron::new(config_id));
+        self.synapses.push(vec![]);
         self.neurons.len() - 1
+    }
+
+    fn create_synapse(&mut self, from_neuron: usize, synapse: Synapse) {
+        let mut syn_arr = &mut (self.synapses.as_mut_slice())[from_neuron];
+        syn_arr.push(synapse);
     }
 
     fn add_event(&mut self, event: Event) {
         self.events.push(event);
+    }
+
+    fn fire(&mut self, timestamp: time, neuron_id: usize) {
+        for syn in &self.synapses[neuron_id] {
+            println!("{:?}", syn);
+            self.events.push(Event {
+                time: timestamp + syn.delay,
+                weight: syn.weight,
+                target: syn.post_neuron
+            });
+        }
     }
 
     fn simulate(&mut self) {
@@ -160,11 +188,23 @@ impl Net {
 
 	    if let Some(ev) = self.events.pop() {
 		println!("{:?}", ev);
-		let neuron = &mut (self.neurons.as_mut_slice())[ev.target];
-		let cfg = &(self.neuron_configs.as_slice())[neuron.config_id];
-		let fire = neuron.spike(ev.time, ev.weight, cfg);
-		println!("{:?}", fire);
-		println!("{:?}", neuron);
+                let neuron_id = ev.target;
+                let fire = {
+		    let neuron = &mut (self.neurons.as_mut_slice())[neuron_id];
+		    let cfg = &(self.neuron_configs.as_slice())[neuron.config_id];
+		    let fire = neuron.spike(ev.time, ev.weight, cfg);
+		    println!("{:?}", fire);
+		    println!("{:?}", neuron);
+                    fire
+                };
+                match fire {
+                    NeuronResult::Fire => {
+                        // Post a new event to all synapses
+                        self.fire(ev.time, neuron_id);
+                    }
+                    _ => {
+                    }
+                }
 	    }
 	    else {
 		break;
@@ -195,18 +235,20 @@ fn main() {
         threshold: 0.6,
     });
 
-    let n1 = net.create_neuron(cfg_i);
+    let inp1 = net.create_neuron(cfg_i);
+    let inp2 = net.create_neuron(cfg_i);
+
+    net.create_synapse(inp1, Synapse {delay: us(160), weight: 1.0, post_neuron: inp2});
 
     // Fill event queue with events
     for i in 1..100 {
         let ev = Event {
             time:   ms(i) / 10,   
             weight: 0.6,
-            target: n1 
+            target: inp1
         };
 
         net.add_event(ev);
-        //pq.push(ev);
     }
 
     net.simulate();
