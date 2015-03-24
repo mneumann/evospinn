@@ -22,6 +22,9 @@ struct Neuron {
     arp_end:         time,
     last_spike_time: time,
     mem_pot:         float,
+
+    /// An index into a [Config] table.
+    config_id:       usize,
 }
 
 #[derive(Debug)]
@@ -32,11 +35,12 @@ enum NeuronResult {
 }
 
 impl Neuron {
-    fn new() -> Neuron {
+    fn new(config_id: usize) -> Neuron {
         Neuron {
             arp_end: 0,
             last_spike_time: 0,
-            mem_pot: 0.0
+            mem_pot: 0.0,
+            config_id: config_id,
         }
     }
 
@@ -138,7 +142,10 @@ fn main() {
         threshold: 0.6,
     };
 
-    let mut n1 = Neuron::new();
+    let mut configs = vec![/* 0 */cfg_k, /* 1 */cfg_i];
+
+    let mut n1 = Neuron::new(1);
+
     let mut neurons = vec![n1];
     let mut neurons = neurons.as_mut_slice();
 
@@ -161,7 +168,8 @@ fn main() {
         if let Some(ev) = pq.pop() {
             println!("{:?}", ev);
             let neuron = &mut neurons[ev.target as usize];
-            let fire = neuron.spike(ev.time, ev.weight, &cfg_i);
+            let cfg = &(configs.as_slice())[neuron.config_id];
+            let fire = neuron.spike(ev.time, ev.weight, cfg);
             println!("{:?}", fire);
             println!("{:?}", neuron);
         }
