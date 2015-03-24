@@ -8,7 +8,7 @@ type time = u64;
 const TIME_RESOLUTION: time = 1000_000; // in micro seconds.
 
 #[derive(Debug)]
-struct Config {
+struct NeuronConfig {
     arp:       time,
     tau_m:     float,
     tau_r:     float,
@@ -23,7 +23,7 @@ struct Neuron {
     last_spike_time: time,
     mem_pot:         float,
 
-    /// An index into a [Config] table.
+    /// An index into a [NeuronConfig] table.
     config_id:       usize,
 }
 
@@ -44,7 +44,7 @@ impl Neuron {
         }
     }
 
-    fn spike(&mut self, timestamp: time, weight: float, cfg: &Config) -> NeuronResult {
+    fn spike(&mut self, timestamp: time, weight: float, cfg: &NeuronConfig) -> NeuronResult {
         assert!(timestamp >= self.last_spike_time);
 
         // Return early if still in absolute refractory period (arp)
@@ -125,7 +125,7 @@ fn us(n: time) -> time { n }
 
 struct Net {
     neurons: Vec<Neuron>,
-    neuron_configs: Vec<Config>,
+    neuron_configs: Vec<NeuronConfig>,
     events: BinaryHeap<Event>,
 }
 
@@ -139,13 +139,13 @@ impl Net {
     }
 
     /// Returns the config_id
-    fn add_neuron_config(&mut self, config: Config) -> usize {
+    fn create_neuron_config(&mut self, config: NeuronConfig) -> usize {
         self.neuron_configs.push(config);
         self.neuron_configs.len() - 1
     }
 
     /// Returns the neuron_id
-    fn add_neuron(&mut self, config_id: usize) -> usize {
+    fn create_neuron(&mut self, config_id: usize) -> usize {
         self.neurons.push(Neuron::new(config_id));
         self.neurons.len() - 1
     }
@@ -178,7 +178,7 @@ fn main() {
     let mut net = Net::new();
    
     // Koinzidenz neurons
-    let cfg_k = net.add_neuron_config(Config {
+    let cfg_k = net.create_neuron_config(NeuronConfig {
         arp: us(500), // 0.5 ms = 500 us
         tau_m: 0.04,
         tau_r: 0.5,
@@ -187,7 +187,7 @@ fn main() {
     });
 
     // Input neurons
-    let cfg_i = net.add_neuron_config(Config {
+    let cfg_i = net.create_neuron_config(NeuronConfig {
         arp: ms(1),
         tau_m: 0.0,
         tau_r: 0.5,
@@ -195,7 +195,7 @@ fn main() {
         threshold: 0.6,
     });
 
-    let n1 = net.add_neuron(cfg_i);
+    let n1 = net.create_neuron(cfg_i);
 
     // Fill event queue with events
     for i in 1..100 {
