@@ -95,7 +95,7 @@ impl Neuron {
 struct Event {
     time:   time,
     weight: float,
-    target: u64
+    target: usize
 }
 
 impl PartialEq for Event {
@@ -122,60 +122,92 @@ impl Ord for Event {
 fn ms(n: time) -> time { n * 1000 }
 fn us(n: time) -> time { n }
 
+
+struct Net {
+    neurons: Vec<Neuron>,
+    neuron_configs: Vec<Config>,
+    events: BinaryHeap<Event>,
+}
+
+impl Net {
+    fn new() -> Net {
+        Net {
+            neurons: vec![],
+            neuron_configs: vec![],
+            events: BinaryHeap::new(),
+        }
+    }
+
+    /// Returns the config_id
+    fn add_neuron_config(&mut self, config: Config) -> usize {
+        self.neuron_configs.push(config);
+        self.neuron_configs.len() - 1
+    }
+
+    /// Returns the neuron_id
+    fn add_neuron(&mut self, config_id: usize) -> usize {
+        self.neurons.push(Neuron::new(config_id));
+        self.neurons.len() - 1
+    }
+
+    fn add_event(&mut self, event: Event) {
+        self.events.push(event);
+    }
+
+    fn simulate(&mut self) {
+	loop {
+	    println!("-------------------------------------");
+
+	    if let Some(ev) = self.events.pop() {
+		println!("{:?}", ev);
+		let neuron = &mut (self.neurons.as_mut_slice())[ev.target];
+		let cfg = &(self.neuron_configs.as_slice())[neuron.config_id];
+		let fire = neuron.spike(ev.time, ev.weight, cfg);
+		println!("{:?}", fire);
+		println!("{:?}", neuron);
+	    }
+	    else {
+		break;
+	    }
+	}
+    }
+}
+
 fn main() {
+
+    let mut net = Net::new();
    
     // Koinzidenz neurons
-    let cfg_k = Config {
+    let cfg_k = net.add_neuron_config(Config {
         arp: us(500), // 0.5 ms = 500 us
         tau_m: 0.04,
         tau_r: 0.5,
         weight_r: 0.0,
         threshold: 1.1,
-    };
+    });
 
     // Input neurons
-    let cfg_i = Config {
+    let cfg_i = net.add_neuron_config(Config {
         arp: ms(1),
         tau_m: 0.0,
         tau_r: 0.5,
         weight_r: 0.0,
         threshold: 0.6,
-    };
+    });
 
-    let mut configs = vec![/* 0 */cfg_k, /* 1 */cfg_i];
-
-    let mut n1 = Neuron::new(1);
-
-    let mut neurons = vec![n1];
-    let mut neurons = neurons.as_mut_slice();
-
-    let mut pq: BinaryHeap<Event> = BinaryHeap::new();
+    let n1 = net.add_neuron(cfg_i);
 
     // Fill event queue with events
     for i in 1..100 {
         let ev = Event {
             time:   ms(i) / 10,   
             weight: 0.6,
-            target: 0
-        }; 
+            target: n1 
+        };
 
-        pq.push(ev);
+        net.add_event(ev);
+        //pq.push(ev);
     }
 
-    loop {
-        println!("-------------------------------------");
-
-        if let Some(ev) = pq.pop() {
-            println!("{:?}", ev);
-            let neuron = &mut neurons[ev.target as usize];
-            let cfg = &(configs.as_slice())[neuron.config_id];
-            let fire = neuron.spike(ev.time, ev.weight, cfg);
-            println!("{:?}", fire);
-            println!("{:?}", neuron);
-        }
-        else {
-            break;
-        }
-    }
-
+    net.simulate();
 }
