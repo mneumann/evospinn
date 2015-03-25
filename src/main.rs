@@ -18,6 +18,9 @@ struct NeuronConfig {
     threshold: float, 
 }
 
+#[derive(Debug, Copy)]
+struct NeuronConfigId(usize);
+
 #[derive(Debug)]
 struct Neuron {
     /// End of absolute refractory period 
@@ -26,7 +29,7 @@ struct Neuron {
     mem_pot:         float,
 
     /// An index into a [NeuronConfig] table.
-    config_id:       usize,
+    config_id:       NeuronConfigId,
 }
 
 #[derive(Debug)]
@@ -37,7 +40,7 @@ enum NeuronResult {
 }
 
 impl Neuron {
-    fn new(config_id: usize) -> Neuron {
+    fn new(config_id: NeuronConfigId) -> Neuron {
         Neuron {
             arp_end: 0,
             last_spike_time: 0,
@@ -149,14 +152,13 @@ impl Net {
         }
     }
 
-    /// Returns the config_id
-    fn create_neuron_config(&mut self, config: NeuronConfig) -> usize {
+    fn create_neuron_config(&mut self, config: NeuronConfig) -> NeuronConfigId {
         self.neuron_configs.push(config);
-        self.neuron_configs.len() - 1
+        NeuronConfigId(self.neuron_configs.len() - 1)
     }
 
     /// Returns the neuron_id
-    fn create_neuron(&mut self, config_id: usize) -> usize {
+    fn create_neuron(&mut self, config_id: NeuronConfigId) -> usize {
         self.neurons.push(Neuron::new(config_id));
         self.synapses.push(vec![]);
         self.neurons.len() - 1
@@ -182,6 +184,14 @@ impl Net {
         }
     }
 
+    fn get_config_for_neuron<'a>(&'a self, neuron: &Neuron) -> &'a NeuronConfig {
+        match neuron.config_id {
+            NeuronConfigId(idx) => {
+                &(self.neuron_configs.as_slice())[idx]
+            }
+        }
+    }
+
     fn simulate(&mut self) {
 	loop {
 	    println!("-------------------------------------");
@@ -191,7 +201,13 @@ impl Net {
                 let neuron_id = ev.target;
                 let fire = {
 		    let neuron = &mut (self.neurons.as_mut_slice())[neuron_id];
-		    let cfg = &(self.neuron_configs.as_slice())[neuron.config_id];
+
+                    let cfg = match neuron.config_id {
+                        NeuronConfigId(idx) => {
+                            &(self.neuron_configs.as_slice())[idx]
+                        }
+                    };
+
 		    let fire = neuron.spike(ev.time, ev.weight, cfg);
 		    println!("{:?}", fire);
 		    println!("{:?}", neuron);
