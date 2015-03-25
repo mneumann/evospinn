@@ -15,7 +15,8 @@ struct NeuronConfig {
     tau_m:     float,
     tau_r:     float,
     weight_r:  float,
-    threshold: float, 
+    threshold: float,
+    record:    Option<&'static str>,
 }
 
 #[derive(Debug, Copy)]
@@ -184,10 +185,22 @@ impl Net {
                 target: syn.post_neuron
             });
         }
+
+        if let Some(ident) = self.get_config_for_neuron_id(neuron_id).record {
+            println!("RECORD\t{}\t{}\t{}", ident, neuron_id.0, timestamp);
+        }
+    }
+
+    fn get_neuron(&self, neuron_id: NeuronId) -> &Neuron {
+        &self.neurons[neuron_id.0]
     }
 
     fn get_config_for_neuron<'a>(&'a self, neuron: &Neuron) -> &'a NeuronConfig {
         &(self.neuron_configs.as_slice())[neuron.config_id.0]
+    }
+
+    fn get_config_for_neuron_id(&self, neuron_id: NeuronId) -> &NeuronConfig {
+        self.get_config_for_neuron(self.get_neuron(neuron_id))
     }
 
     fn simulate(&mut self) {
@@ -221,9 +234,19 @@ impl Net {
     }
 }
 
-fn main() {
 
+
+fn main() {
     let mut net = Net::new();
+
+    let input_neuron_template = NeuronConfig {
+        arp: ms(1),
+        tau_m: 0.0,
+        tau_r: 0.5,
+        weight_r: 0.0,
+        threshold: 0.6,
+        record: None
+    };
    
     // Koinzidenz neurons
     let cfg_k = net.create_neuron_config(NeuronConfig {
@@ -232,19 +255,21 @@ fn main() {
         tau_r: 0.5,
         weight_r: 0.0,
         threshold: 1.1,
+        record: None,
     });
 
     // Input neurons
-    let cfg_i = net.create_neuron_config(NeuronConfig {
-        arp: ms(1),
-        tau_m: 0.0,
-        tau_r: 0.5,
-        weight_r: 0.0,
-        threshold: 0.6,
+    let cfg_i1 = net.create_neuron_config(NeuronConfig {
+        record: Some("input1"),
+        ..input_neuron_template
+    });
+    let cfg_i2 = net.create_neuron_config(NeuronConfig {
+        record: Some("input2"),
+        ..input_neuron_template
     });
 
-    let inp1 = net.create_neuron(cfg_i);
-    let inp2 = net.create_neuron(cfg_i);
+    let inp1 = net.create_neuron(cfg_i1);
+    let inp2 = net.create_neuron(cfg_i2);
 
     net.create_synapse(inp1, Synapse {delay: us(160), weight: 1.0, post_neuron: inp2});
 
