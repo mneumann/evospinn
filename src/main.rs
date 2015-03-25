@@ -9,7 +9,7 @@ type time = u64;
 
 const TIME_RESOLUTION: time = 1000_000; // in micro seconds.
 
-#[derive(Debug)]
+#[derive(Debug, Copy)]
 struct NeuronConfig {
     arp:       time,
     tau_m:     float,
@@ -21,7 +21,7 @@ struct NeuronConfig {
 #[derive(Debug, Copy)]
 struct NeuronConfigId(usize);
 
-#[derive(Debug)]
+#[derive(Debug, Copy)]
 struct Neuron {
     /// End of absolute refractory period 
     arp_end:         time,
@@ -32,7 +32,10 @@ struct Neuron {
     config_id:       NeuronConfigId,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy)]
+struct NeuronId(usize);
+
+#[derive(Debug, Copy)]
 enum NeuronResult {
     InArp,
     NoFire,
@@ -101,7 +104,7 @@ impl Neuron {
 struct Event {
     time:   time,
     weight: float,
-    target: usize
+    target: NeuronId
 }
 
 impl PartialEq for Event {
@@ -132,7 +135,7 @@ fn us(n: time) -> time { n }
 struct Synapse {
     delay:  time,
     weight: float,
-    post_neuron: usize,
+    post_neuron: NeuronId,
 }
 
 struct Net {
@@ -157,15 +160,14 @@ impl Net {
         NeuronConfigId(self.neuron_configs.len() - 1)
     }
 
-    /// Returns the neuron_id
-    fn create_neuron(&mut self, config_id: NeuronConfigId) -> usize {
+    fn create_neuron(&mut self, config_id: NeuronConfigId) -> NeuronId {
         self.neurons.push(Neuron::new(config_id));
         self.synapses.push(vec![]);
-        self.neurons.len() - 1
+        NeuronId(self.neurons.len() - 1)
     }
 
-    fn create_synapse(&mut self, from_neuron: usize, synapse: Synapse) {
-        let mut syn_arr = &mut (self.synapses.as_mut_slice())[from_neuron];
+    fn create_synapse(&mut self, from_neuron: NeuronId, synapse: Synapse) {
+        let mut syn_arr = &mut (self.synapses.as_mut_slice())[from_neuron.0];
         syn_arr.push(synapse);
     }
 
@@ -173,8 +175,8 @@ impl Net {
         self.events.push(event);
     }
 
-    fn fire(&mut self, timestamp: time, neuron_id: usize) {
-        for syn in &self.synapses[neuron_id] {
+    fn fire(&mut self, timestamp: time, neuron_id: NeuronId) {
+        for syn in &self.synapses[neuron_id.0] {
             println!("{:?}", syn);
             self.events.push(Event {
                 time: timestamp + syn.delay,
@@ -185,11 +187,7 @@ impl Net {
     }
 
     fn get_config_for_neuron<'a>(&'a self, neuron: &Neuron) -> &'a NeuronConfig {
-        match neuron.config_id {
-            NeuronConfigId(idx) => {
-                &(self.neuron_configs.as_slice())[idx]
-            }
-        }
+        &(self.neuron_configs.as_slice())[neuron.config_id.0]
     }
 
     fn simulate(&mut self) {
@@ -200,14 +198,8 @@ impl Net {
 		println!("{:?}", ev);
                 let neuron_id = ev.target;
                 let fire = {
-		    let neuron = &mut (self.neurons.as_mut_slice())[neuron_id];
-
-                    let cfg = match neuron.config_id {
-                        NeuronConfigId(idx) => {
-                            &(self.neuron_configs.as_slice())[idx]
-                        }
-                    };
-
+		    let neuron = &mut (self.neurons.as_mut_slice())[neuron_id.0];
+                    let cfg = &(self.neuron_configs.as_slice())[neuron.config_id.0];
 		    let fire = neuron.spike(ev.time, ev.weight, cfg);
 		    println!("{:?}", fire);
 		    println!("{:?}", neuron);
