@@ -1,12 +1,10 @@
-#![feature(core)]
-
 extern crate evospinn;
 
 use evospinn::*;
 
 // From Optimierung-1/stimuli.txt
 
-const spikes_input_0: [float; 49] = [
+const SPIKES_INPUT_0: [float; 49] = [
     0.38, 3.38, 6.38, 9.38, 12.38, 15.38, 18.38,
     21.38, 24.38, 27.38, 30.38, 33.38, 36.38, 39.38,
     42.38, 45.38, 48.38, 52.98, 55.98, 58.98,
@@ -17,7 +15,7 @@ const spikes_input_0: [float; 49] = [
     142.59, 145.59, 148.59
 ];
 
-const spikes_input_1: [float; 49] = [
+const SPIKES_INPUT_1: [float; 49] = [
     1.0, 4.0, 7.0, 10.0, 13.0, 16.0, 19.0,
     22.0, 25.0, 28.0, 31.0, 34.0, 37.0,
     40.0, 43.0, 46.0, 49.0, 53.0, 56.0, 59.0,
@@ -28,9 +26,9 @@ const spikes_input_1: [float; 49] = [
     142.0, 145.0, 148.0
 ];
 
-const correct_output_0: (float, float) = (  0.0,  47.0);
-const correct_output_1: (float, float) = ( 47.0, 100.0);
-const correct_output_2: (float, float) = (100.0, 170.0);
+const CORRECT_OUTPUT_0: (float, float) = (  0.0,  47.0);
+const CORRECT_OUTPUT_1: (float, float) = ( 47.0, 100.0);
+const CORRECT_OUTPUT_2: (float, float) = (100.0, 170.0);
 
 fn main() {
     let mut net = Net::new();
@@ -116,8 +114,8 @@ fn main() {
     net.create_synapse(n_innerinp1, Synapse {delay: us(15), weight: 1.0, post_neuron: n_k1});
     net.create_synapse(n_innerinp1, Synapse {delay: us(593), weight: 1.0, post_neuron: n_k2});
 
-    net.add_spike_train_float_ms(n_input0, 1.0, &spikes_input_0);
-    net.add_spike_train_float_ms(n_input1, 1.0, &spikes_input_1);
+    net.add_spike_train_float_ms(n_input0, 1.0, &SPIKES_INPUT_0);
+    net.add_spike_train_float_ms(n_input1, 1.0, &SPIKES_INPUT_1);
 
     net.simulate();
 }
