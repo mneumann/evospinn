@@ -24,7 +24,7 @@ pub fn ns(n: time) -> time { n }
 #[derive(Debug, Copy)]
 pub struct NeuronConfig {
     pub arp:       time,
-    pub tau_m:     float,
+    pub tau_m:     time,
     pub tau_r:     float,
     pub weight_r:  float,
     pub threshold: float,
@@ -55,8 +55,8 @@ pub enum NeuronResult {
     Fire
 }
 
-fn calc_decay(duration_ms: float, tau_m: float) -> float {
-    (duration_ms / tau_m).exp()
+fn calc_decay(duration: time, tau_m: time) -> float {
+    (duration as f64 / tau_m as f64).exp()
 }
 
 impl Neuron {
@@ -71,7 +71,6 @@ impl Neuron {
 
     pub fn spike(&mut self, timestamp: time, weight: float, cfg: &NeuronConfig) -> NeuronResult {
         assert!(timestamp >= self.last_spike_time);
-        assert!(cfg.tau_m >= 0.0);
 
         // Return early if still in absolute refractory period (arp)
         if timestamp < self.arp_end {
@@ -90,8 +89,9 @@ impl Neuron {
                             cfg.weight_r * (-delta / cfg.tau_r).exp(); 
 
         // Update memory potential
-        if cfg.tau_m > 0.0 {
-            let decay = calc_decay(time_to_ms_float(timestamp - self.last_spike_time), cfg.tau_m);
+        if cfg.tau_m > 0 {
+            assert!(timestamp >= self.last_spike_time);
+            let decay = calc_decay(timestamp - self.last_spike_time, cfg.tau_m);
             self.mem_pot = weight + (self.mem_pot / decay);
         }
         else {
@@ -120,10 +120,10 @@ macro_rules! assert_in_delta {
 #[test]
 fn test_decay()
 {
-    let decay = calc_decay(1.0, 1.0);
+    let decay = calc_decay(1, 1);
     assert_in_delta!(2.7182, decay, 0.01);
 
-    let decay = calc_decay(1.0, 1.44269504089);
+    let decay = calc_decay(100000000000, 144269504089);
     assert_in_delta!(2.0, decay, 0.01);
 }
 
@@ -133,7 +133,7 @@ fn test_neuron_firing()
     let mut neuron = Neuron::new(NeuronConfigId(0));
     let neuron_cfg = NeuronConfig {
         arp:       0,
-        tau_m:     0.0,
+        tau_m:     us(0),
         tau_r:     0.0,
         weight_r:  0.0,
         threshold: 1.0,

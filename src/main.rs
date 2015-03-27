@@ -35,7 +35,7 @@ fn main() {
 
     let input_neuron_template = NeuronConfig {
         arp: ms(0),
-        tau_m: 0.0,
+        tau_m: ms(0),
         tau_r: 0.0,
         weight_r: 0.0,
         threshold: 0.0,
@@ -43,7 +43,7 @@ fn main() {
     };
     let output_neuron_template = NeuronConfig {
         arp: ms(0),
-        tau_m: 0.0,
+        tau_m: ms(0),
         tau_r: 0.0,
         weight_r: 0.0,
         threshold: 0.609375,
@@ -72,7 +72,7 @@ fn main() {
     });
     let cfg_innerinp = net.create_neuron_config(NeuronConfig {
         arp: ms(1),
-        tau_m: 0.0,
+        tau_m: ms(0),
         tau_r: 0.0,
         weight_r: 0.0,
         threshold: 0.59375,
@@ -81,7 +81,7 @@ fn main() {
     // Koinzidenz neurons
     let cfg_k = net.create_neuron_config(NeuronConfig {
         arp: us(500), // 0.5 ms = 500 us
-        tau_m: 0.046875,
+        tau_m: ns(46_875),
         tau_r: 0.0,
         weight_r: 0.0,
         threshold: 1.09375,
