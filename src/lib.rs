@@ -7,6 +7,8 @@ use std::cmp::Ordering;
 pub type float = f64;
 pub type time = u64; // in nano seconds
 
+pub mod timestamp;
+
 fn time_to_ms_float(t: time) -> float {
     (t as float) / 1_000_000.0 as float
 }
