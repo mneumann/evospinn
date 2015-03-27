@@ -82,9 +82,6 @@ impl Neuron {
         assert!(timestamp >= self.arp_end);
         let delta = timestamp - self.arp_end;
 
-        // Time since last fire (XXX)
-        let delta = delta + cfg.arp;
-
         // Convert delta to float (ms)
         let delta = time_to_ms_float(delta);
 
