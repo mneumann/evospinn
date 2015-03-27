@@ -106,13 +106,12 @@ fn main() {
     net.create_synapse(n_k2, Synapse {delay: us(0), weight: 1.0, post_neuron: n_output2});
 
     net.create_synapse(n_innerinp0, Synapse {delay: us(625), weight: 1.0, post_neuron: n_k0});
-    net.create_synapse(n_innerinp0, Synapse {delay: us(15), weight: 1.0, post_neuron: n_k1}); // 0.015625
+    net.create_synapse(n_innerinp0, Synapse {delay: ns(15_625), weight: 1.0, post_neuron: n_k1});
     net.create_synapse(n_innerinp0, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k2});
 
     net.create_synapse(n_innerinp1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k0});
-    //net.create_synapse(n_innerinp1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k1});
-    net.create_synapse(n_innerinp1, Synapse {delay: us(15), weight: 1.0, post_neuron: n_k1});
-    net.create_synapse(n_innerinp1, Synapse {delay: us(593), weight: 1.0, post_neuron: n_k2});
+    net.create_synapse(n_innerinp1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k1});
+    net.create_synapse(n_innerinp1, Synapse {delay: ns(593_750), weight: 1.0, post_neuron: n_k2});
 
     net.add_spike_train_float_ms(n_input0, 1.0, &SPIKES_INPUT_0);
     net.add_spike_train_float_ms(n_input1, 1.0, &SPIKES_INPUT_1);

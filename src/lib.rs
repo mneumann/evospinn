@@ -5,9 +5,19 @@ use std::collections::binary_heap::BinaryHeap; // pq
 use std::cmp::Ordering;
 
 pub type float = f64;
-pub type time = u64;
+pub type time = u64; // in nano seconds
 
-const TIME_RESOLUTION: time = 1000_000; // in micro seconds.
+fn time_to_ms_float(t: time) -> float {
+    (t as float) / 1_000_000.0 as float
+}
+
+fn ms_float_to_time(t: float) -> time {
+    (t * 1_000_000.0) as time
+}
+
+pub fn ms(n: time) -> time { n * 1_000_000 }
+pub fn us(n: time) -> time { n * 1000 }
+pub fn ns(n: time) -> time { n }
 
 #[derive(Debug, Copy)]
 pub struct NeuronConfig {
@@ -36,11 +46,15 @@ pub struct Neuron {
 #[derive(Debug, Copy)]
 pub struct NeuronId(usize);
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, PartialEq, Eq)]
 pub enum NeuronResult {
     InArp,
     NoFire,
     Fire
+}
+
+fn calc_decay(duration_ms: float, tau_m: float) -> float {
+    (duration_ms / tau_m).exp()
 }
 
 impl Neuron {
@@ -66,8 +80,11 @@ impl Neuron {
         assert!(timestamp >= self.arp_end);
         let delta = timestamp - self.arp_end;
 
-        // Convert delta to float
-        let delta: float = (delta as float) / TIME_RESOLUTION as float;
+        // Time since last fire (XXX)
+        let delta = delta + cfg.arp;
+
+        // Convert delta to float (ms)
+        let delta = time_to_ms_float(delta);
 
         // Calculate dynamic threshold
         let dyn_threshold = cfg.threshold +
@@ -75,14 +92,8 @@ impl Neuron {
 
         // Update memory potential
         if cfg.tau_m > 0.0 {
-          
-            let d = timestamp - self.last_spike_time;
-            // Convert delta to float
-            let d: float = (d as float) / TIME_RESOLUTION as float;
-
-            let decay = (-d / cfg.tau_m).exp();
-            self.mem_pot *= decay;
-            self.mem_pot += weight;
+            let decay = calc_decay(time_to_ms_float(timestamp - self.last_spike_time), cfg.tau_m);
+            self.mem_pot = weight + (self.mem_pot / decay);
         }
         else {
             self.mem_pot = weight;
@@ -99,6 +110,43 @@ impl Neuron {
             NeuronResult::NoFire
         }
     }
+}
+
+macro_rules! assert_in_delta {
+    ( $exp:expr, $act:expr, $delta:expr ) => {
+        assert!( ($exp - $act).abs() < $delta )
+    };
+}
+
+#[test]
+fn test_decay()
+{
+    let decay = calc_decay(1.0, 1.0);
+    assert_in_delta!(2.7182, decay, 0.01);
+
+    let decay = calc_decay(1.0, 1.44269504089);
+    assert_in_delta!(2.0, decay, 0.01);
+}
+
+#[test]
+fn test_neuron_firing()
+{
+    let mut neuron = Neuron::new(NeuronConfigId(0));
+    let neuron_cfg = NeuronConfig {
+        arp:       0,
+        tau_m:     0.0,
+        tau_r:     0.0,
+        weight_r:  0.0,
+        threshold: 1.0,
+        record:    None,
+    };
+
+    assert_eq!(0, neuron.arp_end);
+    assert_eq!(0, neuron.last_spike_time);
+    assert_in_delta!(0.0, neuron.mem_pot, 0.0001);
+
+    let res = neuron.spike(ms(1), 0.9, &neuron_cfg); 
+    assert_eq!(NeuronResult::NoFire, res);
 }
 
 #[derive(Debug)]
@@ -127,10 +175,6 @@ impl Ord for Event {
         self.time.cmp(&other.time).reverse()
     }
 }
-
-
-pub fn ms(n: time) -> time { n * 1000 }
-pub fn us(n: time) -> time { n }
 
 #[derive(Debug)]
 pub struct Synapse {
@@ -180,7 +224,7 @@ impl Net {
     pub fn add_spike_train_float_ms(&mut self, target: NeuronId, weight: float, spikes: &[float]) {
         for &t in spikes {
             self.add_event(Event {
-                time: (t * 1000.0) as time, // convert to us
+                time: ms_float_to_time(t),
                 weight: weight,
                 target: target
             });
