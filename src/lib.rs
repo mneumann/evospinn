@@ -45,7 +45,7 @@ pub struct Neuron {
     config_id:       NeuronConfigId,
 }
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NeuronId(usize);
 
 #[derive(Debug, Copy, PartialEq, Eq)]
@@ -157,7 +157,7 @@ pub struct Event {
 
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
-        self.time == other.time
+        self.time == other.time && self.target == other.target
     }
 }
 
@@ -165,13 +165,23 @@ impl Eq for Event {}
 
 impl PartialOrd for Event {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.time.partial_cmp(&other.time).map(|o| o.reverse())
+        let res = if self.time < other.time {
+            Ordering::Less
+        }
+        else if self.time > other.time {
+            Ordering::Greater
+        }
+        else {
+            debug_assert!(self.time == other.time);
+            self.target.cmp(&other.target)
+        };
+        Some(res.reverse())
     }
 }
 
 impl Ord for Event {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.time.cmp(&other.time).reverse()
+        self.partial_cmp(other).unwrap()
     }
 }
 
