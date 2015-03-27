@@ -271,7 +271,20 @@ impl Net {
 	loop {
 	    println!("-------------------------------------");
 
-	    if let Some(ev) = self.events.pop() {
+	    if let Some(mut ev) = self.events.pop() {
+
+                // consume all elements with same timestamp and same target 
+                loop {
+                    match self.events.peek() {
+                        Some(ev2) if ev2.time == ev.time && ev2.target == ev.target => {
+                            println!("consume additional event: {:?}", ev2);
+                            ev.weight += ev2.weight;
+                        }
+                        _ => break
+                    }
+                    let _ = self.events.pop();
+                }
+
 		println!("{:?}", ev);
                 let neuron_id = ev.target;
                 let fire = {
