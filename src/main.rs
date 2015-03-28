@@ -46,6 +46,10 @@ impl FitnessRecorder {
     fn add_correct_range(&mut self, neuron_id: NeuronId, range: Range<time>) {
         self.correct_ranges.push((neuron_id, range));
     }
+
+    fn classification_rate(&self) -> f64 {
+        (self.correct_fires as f64) / (self.total_fires as f64)
+    }
 }
 
 impl Recorder for FitnessRecorder {
@@ -156,5 +160,5 @@ fn main() {
 
     net.simulate();
 
-    println!("{:?}", net.get_recorder());
+    println!("Classification: {}", net.get_recorder().map(|r| r.classification_rate()).unwrap());
 }
