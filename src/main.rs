@@ -1,6 +1,7 @@
 extern crate evospinn;
 
 use evospinn::*;
+use std::ops::Range;
 
 // From Optimierung-1/stimuli.txt
 
@@ -26,9 +27,39 @@ const SPIKES_INPUT_1: [float; 49] = [
     142.0, 145.0, 148.0
 ];
 
-const CORRECT_OUTPUT_0: (float, float) = (  0.0,  47.0);
-const CORRECT_OUTPUT_1: (float, float) = ( 47.0, 100.0);
-const CORRECT_OUTPUT_2: (float, float) = (100.0, 170.0);
+#[derive(Debug)]
+struct FitnessRecorder {
+    total_fires:    usize,
+    correct_fires:  usize,
+    correct_ranges: Vec<(NeuronId, Range<time>)>
+}
+
+impl FitnessRecorder {
+    fn new() -> FitnessRecorder {
+        FitnessRecorder {
+            total_fires: 0,
+            correct_fires: 0,
+            correct_ranges: vec!(),
+        }
+    }
+
+    fn add_correct_range(&mut self, neuron_id: NeuronId, range: Range<time>) {
+        self.correct_ranges.push((neuron_id, range));
+    }
+}
+
+impl Recorder for FitnessRecorder {
+    fn record_fire(&mut self, timestamp: time, neuron_id: NeuronId) {
+        for &(nid, ref range) in self.correct_ranges.iter() {
+            if nid == neuron_id {
+                self.total_fires += 1;
+                if timestamp >= range.start && timestamp < range.end {
+                    self.correct_fires += 1;
+                }
+            }
+        }
+    }
+}
 
 fn main() {
     let mut net = Net::new();
@@ -99,6 +130,13 @@ fn main() {
     let n_k1 = net.create_neuron(cfg_k);
     let n_k2 = net.create_neuron(cfg_k);
 
+    let mut fitness = Box::new(FitnessRecorder::new());
+    fitness.add_correct_range(n_output0, ms(0) .. ms(47));
+    fitness.add_correct_range(n_output1, ms(47) .. ms(100));
+    fitness.add_correct_range(n_output2, ms(100) .. ms(170));
+
+    net.set_recorder(Some(fitness));
+
     net.create_synapse(n_input0, Synapse {delay: us(0), weight: 1.0, post_neuron: n_innerinp0});
     net.create_synapse(n_input1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_innerinp1});
     net.create_synapse(n_k0, Synapse {delay: us(0), weight: 1.0, post_neuron: n_output0});
@@ -117,4 +155,6 @@ fn main() {
     net.add_spike_train_float_ms(n_input1, 1.0, &SPIKES_INPUT_1);
 
     net.simulate();
+
+    println!("{:?}", net.get_recorder());
 }
