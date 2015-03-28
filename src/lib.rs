@@ -38,8 +38,9 @@ pub struct NeuronConfigId(usize);
 pub struct Neuron {
     /// End of absolute refractory period 
     arp_end:         time,
-    last_spike_time: time,
+
     mem_pot:         float,
+    mem_pot_last_update: time,
 
     /// An index into a [NeuronConfig] table.
     config_id:       NeuronConfigId,
@@ -63,14 +64,26 @@ impl Neuron {
     pub fn new(config_id: NeuronConfigId) -> Neuron {
         Neuron {
             arp_end: 0,
-            last_spike_time: 0,
+            mem_pot_last_update: ns(0),
             mem_pot: 0.0,
             config_id: config_id,
         }
     }
 
+    // Calculates the current memory potential
+    pub fn current_mem_pot(&self, timestamp: time, cfg: &NeuronConfig) -> float {
+        assert!(timestamp >= self.mem_pot_last_update);
+        if cfg.tau_m > 0 {
+            let decay = calc_decay(timestamp - self.mem_pot_last_update, cfg.tau_m);
+            self.mem_pot / decay
+        }
+        else {
+            0.0
+        }
+    }
+
     pub fn spike(&mut self, timestamp: time, weight: float, cfg: &NeuronConfig) -> NeuronResult {
-        assert!(timestamp >= self.last_spike_time);
+        assert!(timestamp >= self.mem_pot_last_update);
 
         // Return early if still in absolute refractory period (arp)
         if timestamp < self.arp_end {
@@ -88,18 +101,9 @@ impl Neuron {
         let dyn_threshold = cfg.threshold +
                             cfg.weight_r * (-delta / cfg.tau_r).exp(); 
 
-        // Update memory potential
-        if cfg.tau_m > 0 {
-            assert!(timestamp >= self.last_spike_time);
-            let decay = calc_decay(timestamp - self.last_spike_time, cfg.tau_m);
-            self.mem_pot = weight + (self.mem_pot / decay);
-        }
-        else {
-            self.mem_pot = weight;
-        }
-
-        // Update last spike time
-        self.last_spike_time = timestamp;
+        // Recalculate and update memory potential
+        self.mem_pot = weight + self.current_mem_pot(timestamp, cfg);
+        self.mem_pot_last_update = timestamp;
 
         if self.mem_pot >= dyn_threshold {
             self.arp_end = timestamp + cfg.arp;
