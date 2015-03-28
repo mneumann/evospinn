@@ -196,11 +196,16 @@ pub struct Synapse {
     pub post_neuron: NeuronId,
 }
 
+pub trait Recorder {
+    fn record_fire(&mut self, timestamp: time, neuron_id: NeuronId);
+}
+
 pub struct Net {
     neurons: Vec<Neuron>,
     neuron_configs: Vec<NeuronConfig>,
     synapses: Vec<Vec<Synapse>>,
     events: BinaryHeap<Event>,
+    recorder: Option<Box<Recorder>>
 }
 
 impl Net {
@@ -210,7 +215,12 @@ impl Net {
             neuron_configs: vec![],
             synapses: vec![],
             events: BinaryHeap::new(),
+            recorder: None,
         }
+    }
+
+    pub fn set_recorder(&mut self, opt_recorder: Option<Box<Recorder>>) {
+        self.recorder = opt_recorder;
     }
 
     pub fn create_neuron_config(&mut self, config: NeuronConfig) -> NeuronConfigId {
@@ -252,6 +262,10 @@ impl Net {
                 weight: syn.weight,
                 target: syn.post_neuron
             });
+        }
+
+        if let Some(ref mut recorder) = self.recorder {
+            recorder.record_fire(timestamp, neuron_id);
         }
 
         if let Some(ident) = self.get_config_for_neuron_id(neuron_id).record {
