@@ -5,6 +5,7 @@ extern crate log;
 
 use std::collections::binary_heap::BinaryHeap; // pq
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 pub type float = f64;
 pub type time = u64; // in nano seconds
@@ -207,7 +208,8 @@ pub struct Net<R:Recorder> {
     neuron_configs: Vec<NeuronConfig>,
     synapses: Vec<Vec<Synapse>>,
     events: BinaryHeap<Event>,
-    recorder: Option<Box<R>>
+    recorder: Option<Box<R>>,
+    names: HashMap<&'static str, NeuronId>,
 }
 
 impl<R:Recorder> Net<R> {
@@ -218,6 +220,7 @@ impl<R:Recorder> Net<R> {
             synapses: vec![],
             events: BinaryHeap::new(),
             recorder: None,
+            names: HashMap::new(),
         }
     }
 
@@ -238,6 +241,17 @@ impl<R:Recorder> Net<R> {
         self.neurons.push(Neuron::new(config_id));
         self.synapses.push(vec![]);
         NeuronId(self.neurons.len() - 1)
+    }
+
+    /// Give a neuron a `name` which can be looked up.
+    pub fn name_neuron(&mut self, neuron_id: NeuronId, name: &'static str) {
+        if let Some(_) = self.names.insert(name, neuron_id) {
+            panic!("Duplicate name");
+        }
+    }
+
+    pub fn lookup_neuron(&self, name: &'static str) -> NeuronId {
+        self.names.get(&name).map(|&v| v).unwrap()
     }
 
     pub fn create_synapse(&mut self, from_neuron: NeuronId, synapse: Synapse) {

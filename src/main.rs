@@ -65,7 +65,7 @@ impl Recorder for FitnessRecorder {
     }
 }
 
-fn main() {
+fn generate_net<R:Recorder>() -> Net<R> {
     let mut net = Net::new();
 
     let input_neuron_template = NeuronConfig {
@@ -134,13 +134,6 @@ fn main() {
     let n_k1 = net.create_neuron(cfg_k);
     let n_k2 = net.create_neuron(cfg_k);
 
-    let mut fitness = Box::new(FitnessRecorder::new());
-    fitness.add_correct_range(n_output0, ms(0) .. ms(47));
-    fitness.add_correct_range(n_output1, ms(47) .. ms(100));
-    fitness.add_correct_range(n_output2, ms(100) .. ms(170));
-
-    net.set_recorder(Some(fitness));
-
     net.create_synapse(n_input0, Synapse {delay: us(0), weight: 1.0, post_neuron: n_innerinp0});
     net.create_synapse(n_input1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_innerinp1});
     net.create_synapse(n_k0, Synapse {delay: us(0), weight: 1.0, post_neuron: n_output0});
@@ -155,8 +148,29 @@ fn main() {
     net.create_synapse(n_innerinp1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k1});
     net.create_synapse(n_innerinp1, Synapse {delay: ns(593_750), weight: 1.0, post_neuron: n_k2});
 
-    net.add_spike_train_float_ms(n_input0, 1.0, &SPIKES_INPUT_0);
-    net.add_spike_train_float_ms(n_input1, 1.0, &SPIKES_INPUT_1);
+    net.name_neuron(n_output0, "output0");
+    net.name_neuron(n_output1, "output1");
+    net.name_neuron(n_output2, "output2");
+    net.name_neuron(n_input0,  "input0");
+    net.name_neuron(n_input1,  "input1");
+ 
+    net
+}
+
+fn main() {
+    let mut net = generate_net();
+
+    let mut fitness = Box::new(FitnessRecorder::new());
+    fitness.add_correct_range(net.lookup_neuron("output0"), ms(0) .. ms(47));
+    fitness.add_correct_range(net.lookup_neuron("output1"), ms(47) .. ms(100));
+    fitness.add_correct_range(net.lookup_neuron("output2"), ms(100) .. ms(170));
+
+    net.set_recorder(Some(fitness));
+
+    let input0 = net.lookup_neuron("input0");
+    let input1 = net.lookup_neuron("input1");
+    net.add_spike_train_float_ms(input0, 1.0, &SPIKES_INPUT_0);
+    net.add_spike_train_float_ms(input1, 1.0, &SPIKES_INPUT_1);
 
     net.simulate();
 
