@@ -1,6 +1,5 @@
-#![feature(core)]
+#![feature(convert)]
 
-use std::num::Float;
 use std::collections::binary_heap::BinaryHeap; // pq
 use std::cmp::Ordering;
 
@@ -21,7 +20,7 @@ pub fn ms(n: time) -> time { n * 1_000_000 }
 pub fn us(n: time) -> time { n * 1000 }
 pub fn ns(n: time) -> time { n }
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct NeuronConfig {
     pub arp:       time,
     pub tau_m:     time,
@@ -31,10 +30,10 @@ pub struct NeuronConfig {
     pub record:    Option<&'static str>,
 }
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct NeuronConfigId(usize);
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct Neuron {
     /// End of absolute refractory period 
     arp_end:         time,
@@ -46,10 +45,10 @@ pub struct Neuron {
     config_id:       NeuronConfigId,
 }
 
-#[derive(Debug, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NeuronId(usize);
 
-#[derive(Debug, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum NeuronResult {
     InArp,
     NoFire,
