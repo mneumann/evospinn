@@ -1,5 +1,8 @@
 #![feature(convert)]
 
+#[macro_use]
+extern crate log;
+
 use std::collections::binary_heap::BinaryHeap; // pq
 use std::cmp::Ordering;
 
@@ -259,7 +262,7 @@ impl<R:Recorder> Net<R> {
 
     fn fire(&mut self, timestamp: time, neuron_id: NeuronId) {
         for syn in &self.synapses[neuron_id.0] {
-            println!("{:?}", syn);
+            debug!("{:?}", syn);
             self.events.push(Event {
                 time: timestamp + syn.delay,
                 weight: syn.weight,
@@ -290,7 +293,7 @@ impl<R:Recorder> Net<R> {
 
     pub fn simulate(&mut self) {
 	loop {
-	    println!("-------------------------------------");
+	    debug!("-------------------------------------");
 
 	    if let Some(mut ev) = self.events.pop() {
 
@@ -298,7 +301,7 @@ impl<R:Recorder> Net<R> {
                 loop {
                     match self.events.peek() {
                         Some(ev2) if ev2.time == ev.time && ev2.target == ev.target => {
-                            println!("consume additional event: {:?}", ev2);
+                            debug!("consume additional event: {:?}", ev2);
                             ev.weight += ev2.weight;
                         }
                         _ => break
@@ -306,14 +309,14 @@ impl<R:Recorder> Net<R> {
                     let _ = self.events.pop();
                 }
 
-		println!("{:?}", ev);
+		debug!("{:?}", ev);
                 let neuron_id = ev.target;
                 let fire = {
 		    let neuron = &mut (self.neurons.as_mut_slice())[neuron_id.0];
                     let cfg = &(self.neuron_configs.as_slice())[neuron.config_id.0];
 		    let fire = neuron.spike(ev.time, ev.weight, cfg);
-		    println!("{:?}", fire);
-		    println!("{:?}", neuron);
+		    debug!("{:?}", fire);
+		    debug!("{:?}", neuron);
                     fire
                 };
                 match fire {
