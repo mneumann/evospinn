@@ -1,7 +1,11 @@
+#![feature(collections,core)]
 extern crate evospinn;
+
+extern crate rand;
 
 use evospinn::*;
 use std::ops::Range;
+use std::collections::BitVec;
 
 // From Optimierung-1/stimuli.txt
 
@@ -157,22 +161,123 @@ fn generate_net<R:Recorder>(tau_m_k: time) -> Net<R> {
     net
 }
 
+/// `nbits` signification number of bits
+/*
+fn bitvec_from_u64(n: u64, nbits: usize) -> BitVec {
+    match nbits {
+        1 ... 63 if n < (2u64 << nbits) => {}
+        64 => {}
+        _  => panic!()
+    }
+
+    BitVec::from_fn(nbits, |i| { (n >> i) & 1 == 1 })
+}
+*/
+
+/// Push the lower `nbits` bits of `value`, msb first.
+fn bitvec_push_bits(bv: &mut BitVec, value: usize, nbits: usize) {
+    if nbits >= std::usize::BITS { panic!() }
+    bv.reserve(nbits);
+    for i in (0 .. nbits).rev() {
+        bv.push((value >> i) & 1 == 1);
+    }
+}
+
+trait BooleanLike: Sized {
+    fn is_true(self) -> bool;
+    fn is_false(self) -> bool { !self.is_true() }
+}
+
+impl BooleanLike for bool {
+    fn is_true(self) -> bool { self }
+}
+
+/// Construct an integer value out of the `nbits` next bits, msb first.
+fn bitvec_construct_value<I:Iterator>(iter: &mut I, nbits: usize) -> usize
+where I::Item: BooleanLike {
+    let mut value = 0usize;
+
+    for _ in (0 .. nbits) {
+        value = value << 1;
+        if iter.next().unwrap().is_true() {
+            value |= 1;
+        }
+    }
+
+    return value;
+}
+
+fn bitvec_random(nbits: usize) -> BitVec {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    BitVec::from_fn(nbits, |_| rng.gen())
+}
+
+#[test]
+fn test_bitvec_from_u64() {
+    let bv = bitvec_from_u64(0b1111, 4);
+    assert_eq!(BitVec::from_elem(4, true), bv);
+}
+
+trait Genome {
+    fn encode_to_bitvec(&self) -> BitVec;
+    fn decode_from_bitvec(bv: &BitVec) -> Self;
+    fn evaluate(&self) -> f64;
+}
+
+#[derive(Debug)]
+struct MyGenome {
+    tau_m_k: time
+}
+
+impl Genome for MyGenome {
+    fn encode_to_bitvec(&self) -> BitVec {
+        let mut bv = BitVec::new();
+        bitvec_push_bits(&mut bv, self.tau_m_k as usize, 20);
+        bv
+    }
+
+    fn decode_from_bitvec(bv: &BitVec) -> MyGenome {
+        let mut it = bv.iter();
+        let value = bitvec_construct_value(&mut it, 20); 
+        // XXX test that iterator is exhausted
+        MyGenome {
+            tau_m_k: value as time
+        }
+    }
+
+    fn evaluate(&self) -> f64 {
+        //let mut net = generate_net(ns(46_875));
+        let mut net = generate_net(ns(self.tau_m_k));
+
+        let mut fitness = Box::new(FitnessRecorder::new());
+        fitness.add_correct_range(net.lookup_neuron("output0"), ms(0) .. ms(47));
+        fitness.add_correct_range(net.lookup_neuron("output1"), ms(47) .. ms(100));
+        fitness.add_correct_range(net.lookup_neuron("output2"), ms(100) .. ms(170));
+
+        let mut fitness = Box::new(FitnessRecorder::new());
+        fitness.add_correct_range(net.lookup_neuron("output0"), ms(0) .. ms(47));
+        fitness.add_correct_range(net.lookup_neuron("output1"), ms(47) .. ms(100));
+        fitness.add_correct_range(net.lookup_neuron("output2"), ms(100) .. ms(170));
+        net.set_recorder(Some(fitness));
+
+        let input0 = net.lookup_neuron("input0");
+        let input1 = net.lookup_neuron("input1");
+        net.add_spike_train_float_ms(input0, 1.0, &SPIKES_INPUT_0);
+        net.add_spike_train_float_ms(input1, 1.0, &SPIKES_INPUT_1);
+
+        net.simulate();
+        let fitness = net.get_recorder().map(|r| r.classification_rate()).unwrap();
+        fitness
+     }
+}
+
 fn main() {
-    let mut net = generate_net(ns(46_875));
+    let bits = bitvec_random(20);
+    let genome: MyGenome = Genome::decode_from_bitvec(&bits);
+    let fitness = genome.evaluate();
 
-    let mut fitness = Box::new(FitnessRecorder::new());
-    fitness.add_correct_range(net.lookup_neuron("output0"), ms(0) .. ms(47));
-    fitness.add_correct_range(net.lookup_neuron("output1"), ms(47) .. ms(100));
-    fitness.add_correct_range(net.lookup_neuron("output2"), ms(100) .. ms(170));
-
-    net.set_recorder(Some(fitness));
-
-    let input0 = net.lookup_neuron("input0");
-    let input1 = net.lookup_neuron("input1");
-    net.add_spike_train_float_ms(input0, 1.0, &SPIKES_INPUT_0);
-    net.add_spike_train_float_ms(input1, 1.0, &SPIKES_INPUT_1);
-
-    net.simulate();
-
-    println!("Classification: {}", net.get_recorder().map(|r| r.classification_rate()).unwrap());
+    println!("bits:    {:?}", bits);
+    println!("genome:  {:?}", genome);
+    println!("fitness: {:?}", fitness);
 }
