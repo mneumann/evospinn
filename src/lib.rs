@@ -289,7 +289,7 @@ impl<R:Recorder> Net<R> {
         }
 
         if let Some(ident) = self.get_config_for_neuron_id(neuron_id).record {
-            println!("RECORD\t{}\t{}\t{}", ident, neuron_id.0, timestamp);
+            info!("RECORD\t{}\t{}\t{}", ident, neuron_id.0, timestamp);
         }
     }
 

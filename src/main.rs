@@ -65,7 +65,7 @@ impl Recorder for FitnessRecorder {
     }
 }
 
-fn generate_net<R:Recorder>() -> Net<R> {
+fn generate_net<R:Recorder>(tau_m_k: time) -> Net<R> {
     let mut net = Net::new();
 
     let input_neuron_template = NeuronConfig {
@@ -116,7 +116,7 @@ fn generate_net<R:Recorder>() -> Net<R> {
     // Koinzidenz neurons
     let cfg_k = net.create_neuron_config(NeuronConfig {
         arp: us(500), // 0.5 ms = 500 us
-        tau_m: ns(46_875),
+        tau_m: tau_m_k,
         tau_r: 0.0,
         weight_r: 0.0,
         threshold: 1.09375,
@@ -158,7 +158,7 @@ fn generate_net<R:Recorder>() -> Net<R> {
 }
 
 fn main() {
-    let mut net = generate_net();
+    let mut net = generate_net(ns(46_875));
 
     let mut fitness = Box::new(FitnessRecorder::new());
     fitness.add_correct_range(net.lookup_neuron("output0"), ms(0) .. ms(47));
