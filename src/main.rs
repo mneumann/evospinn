@@ -222,7 +222,24 @@ fn test_bitvec_from_u64() {
 trait Genome {
     fn encode_to_bitvec(&self) -> BitVec;
     fn decode_from_bitvec(bv: &BitVec) -> Self;
-    fn evaluate(&self) -> f64;
+
+    /// Higher values are better
+    fn fitness(&self) -> f32;
+}
+
+/// `flip_prob` is the probablity that we flip a bit.
+fn mutate_dna(dna: &BitVec, flip_prob: f32) -> BitVec {
+    use rand::{Rng, Open01};
+
+    let mut rng = rand::thread_rng();
+    let mut mutant = BitVec::with_capacity(dna.len());
+
+    for bit in dna {
+        let Open01(r): Open01<f32> = rng.gen();
+        let bit = if r < flip_prob { !bit } else { bit };
+        mutant.push(bit);
+    }
+    mutant
 }
 
 #[derive(Debug)]
@@ -246,7 +263,7 @@ impl Genome for MyGenome {
         }
     }
 
-    fn evaluate(&self) -> f64 {
+    fn fitness(&self) -> f32 {
         //let mut net = generate_net(ns(46_875));
         let mut net = generate_net(ns(self.tau_m_k));
 
@@ -268,16 +285,59 @@ impl Genome for MyGenome {
 
         net.simulate();
         let fitness = net.get_recorder().map(|r| r.classification_rate()).unwrap();
-        fitness
+        fitness as f32
      }
 }
 
-fn main() {
-    let bits = bitvec_random(20);
-    let genome: MyGenome = Genome::decode_from_bitvec(&bits);
-    let fitness = genome.evaluate();
+#[derive(Debug)]
+struct Population {
+    pool: Vec<BitVec>
+}
 
-    println!("bits:    {:?}", bits);
+impl Population {
+    fn new(pop_size: usize, dna_len: usize) -> Population {
+        let mut pool = Vec::with_capacity(pop_size);
+
+        for _ in 0 .. pop_size {
+            let dna = bitvec_random(dna_len);
+            pool.push(dna);
+        }
+
+        assert!(pool.len() == pop_size);
+
+        Population {
+            pool: pool
+        }
+    }
+
+    // For each member in the population calculate it's fitness.
+    fn calc_fitness<T:Genome>(&self) -> Vec<f32> {
+        self.pool.iter().by_ref().map(|dna| {
+            let genome: T = Genome::decode_from_bitvec(dna);
+            genome.fitness()
+        }).collect()
+    }
+}
+
+fn main() {
+    let pop = Population::new(10, 20);
+    println!("pop:     {:?}", pop);
+
+    let fitness = pop.calc_fitness::<MyGenome>();
+    println!("fitness:     {:?}", fitness);
+
+    // select
+
+/*
+    let dna = bitvec_random(20);
+    let genome: MyGenome = Genome::decode_from_bitvec(&dna);
+    let fitness = genome.fitness();
+
+    println!("dna:     {:?}", dna);
     println!("genome:  {:?}", genome);
     println!("fitness: {:?}", fitness);
+
+    let new_dna = mutate_dna(&dna, 0.1);
+    println!("new_dna: {:?}", new_dna);
+*/
 }
