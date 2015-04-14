@@ -6,6 +6,8 @@ extern crate rand;
 use evospinn::*;
 use std::ops::Range;
 use std::collections::BitVec;
+use rand::distributions::IndependentSample;
+use rand::distributions::Range as XRange;
 
 // From Optimierung-1/stimuli.txt
 
@@ -289,13 +291,42 @@ impl Genome for MyGenome {
      }
 }
 
+fn one_point_xover(dna1: &BitVec, dna2: &BitVec) -> (BitVec, BitVec) {
+     assert!(dna1.len() == dna2.len());
+     let len = dna1.len();
+     let mut res1 = BitVec::with_capacity(len);
+     let mut res2 = BitVec::with_capacity(len);
+
+
+     let mut rng = rand::thread_rng();
+     let between = XRange::new(0, len);
+
+     // `n': number of bits that are exchanged between the two dna's
+     let n = between.ind_sample(&mut rng);
+     assert!(n > 0 && n < len);
+
+     let mut i1 = dna1.iter();
+     let mut i2 = dna2.iter();
+
+     for _ in 0..n {
+         res1.push(i2.next().unwrap());
+         res2.push(i1.next().unwrap());
+     }
+     for _ in n..len {
+         res1.push(i1.next().unwrap());
+         res2.push(i2.next().unwrap());
+     }
+
+     (res1, res2)
+}
+
 #[derive(Debug)]
-struct Population {
+struct Generation {
     pool: Vec<BitVec>
 }
 
-impl Population {
-    fn new(pop_size: usize, dna_len: usize) -> Population {
+impl Generation {
+    fn new(pop_size: usize, dna_len: usize) -> Generation {
         let mut pool = Vec::with_capacity(pop_size);
 
         for _ in 0 .. pop_size {
@@ -305,10 +336,12 @@ impl Population {
 
         assert!(pool.len() == pop_size);
 
-        Population {
+        Generation {
             pool: pool
         }
     }
+
+    //fn reproduce
 
     // For each member in the population calculate it's fitness.
     fn calc_fitness<T:Genome>(&self) -> Vec<f32> {
@@ -320,7 +353,7 @@ impl Population {
 }
 
 fn main() {
-    let pop = Population::new(10, 20);
+    let pop = Generation::new(10, 20);
     println!("pop:     {:?}", pop);
 
     let fitness = pop.calc_fitness::<MyGenome>();
