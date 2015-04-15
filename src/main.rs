@@ -357,11 +357,11 @@ struct Generation {
 }
 
 impl Generation {
-    fn new(pop_size: usize, dna_len: usize) -> Generation {
+    fn new<F:Fn() -> Dna>(pop_size: usize, f: F) -> Generation {
         let mut pool = Vec::with_capacity(pop_size);
 
         for _ in 0 .. pop_size {
-            pool.push(Dna::new_random(dna_len));
+            pool.push(f());
         }
 
         assert!(pool.len() == pop_size);
@@ -383,7 +383,7 @@ impl Generation {
 }
 
 fn main() {
-    let pop = Generation::new(10, 20);
+    let pop = Generation::new(10, || Dna::new_random(20));
     println!("pop:     {:?}", pop);
 
     let fitness = pop.calc_fitness::<MyGenome>();
