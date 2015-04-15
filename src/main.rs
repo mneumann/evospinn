@@ -237,7 +237,7 @@ fn mutate_dna(dna: &BitVec, flip_prob: f32) -> BitVec {
     mutant
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 struct Dna {
     bits: BitVec
 }
@@ -350,47 +350,111 @@ impl Genome for MyGenome {
      }
 }
 
+#[derive(Debug,Clone)]
+struct Solution {
+    dna: Dna,
+    fitness: Option<f32>
+}
+
+impl Solution {
+    fn calc_fitness<T:Genome>(&mut self) -> f32 {
+        if let Some(fitness) = self.fitness {
+            fitness
+        } else { 
+            let genome: T = Genome::from_dna(&self.dna);
+            let fitness = genome.fitness();
+            self.fitness = Some(fitness);
+            fitness
+        }
+    }
+}
 
 #[derive(Debug)]
 struct Generation {
-    pool: Vec<Dna>
+    solutions: Vec<Solution>
 }
 
 impl Generation {
     fn new<F:Fn() -> Dna>(pop_size: usize, f: F) -> Generation {
-        let mut pool = Vec::with_capacity(pop_size);
-
-        for _ in 0 .. pop_size {
-            pool.push(f());
-        }
-
-        assert!(pool.len() == pop_size);
-
+        assert!(pop_size > 0);
         Generation {
-            pool: pool
+            solutions: (0 .. pop_size).map(|_| Solution{dna: f(), fitness: None}).collect()
         }
     }
 
-    //fn reproduce
+    /// Select one solution out of k. Returns index.
+    fn tournament_selection<T:Genome>(&mut self, k: usize) -> usize {
+        use rand::{thread_rng, sample};
+
+        let mut best: Option<(usize, f32)> = None;
+
+        let mut rng = thread_rng();
+        let sample = sample(&mut rng, 0..self.solutions.len(), k);
+
+        for i in sample {
+            let sol = &mut self.solutions[i];
+            let fitness = sol.calc_fitness::<T>();
+            best = match best {
+                Some((j, f)) if f > fitness => Some((j, f)),
+                _ => Some((i, fitness))
+            };
+        }
+        return best.unwrap().0;
+    }
+
+    /// Creata a new generation of size `pop_size` based on the current generation.
+    fn reproduce<T:Genome>(&mut self, pop_size: usize, tournament_size: usize, mutate_prob: f32) -> Generation {
+        assert!(self.solutions.len() > 0);
+        let mut solutions = Vec::with_capacity(pop_size);
+        loop {
+            let parent1 = self.tournament_selection::<T>(tournament_size);
+            let parent1 = self.solutions[parent1].clone();
+            let parent2 = self.tournament_selection::<T>(tournament_size);
+            let parent2 = self.solutions[parent2].clone();
+
+            let (child1, child2) = parent1.dna.crossover1(&parent2.dna);
+
+            let child1 = child1.mutate(mutate_prob);
+            let child2 = child2.mutate(mutate_prob);
+
+            if solutions.len() >= pop_size { break }
+            solutions.push(parent1);
+
+            if solutions.len() >= pop_size { break }
+            solutions.push(parent2);
+
+            if solutions.len() >= pop_size { break }
+            solutions.push(Solution{dna:child1, fitness:None});
+
+            if solutions.len() >= pop_size { break }
+            solutions.push(Solution{dna:child2, fitness:None});
+        }
+
+        Generation {solutions: solutions}
+    } 
 
     // For each member in the population calculate it's fitness.
-    fn calc_fitness<T:Genome>(&self) -> Vec<f32> {
-        self.pool.iter().by_ref().map(|dna| {
-            let genome: T = Genome::from_dna(dna);
-            genome.fitness()
-        }).collect()
+    fn calc_fitness<T:Genome>(&mut self) { 
+        for i in 0..self.solutions.len() {
+            let sol = &mut self.solutions[i];
+            let fitness = sol.calc_fitness::<T>();
+        }
     }
 }
 
 fn main() {
-    let pop = Generation::new(10, || Dna::new_random(20));
+    // min/max
+    let mut pop = Generation::new(20, || Dna::new_random(20));
+    pop.calc_fitness::<MyGenome>();
     println!("pop:     {:?}", pop);
+    //let parent1 = pop.tournament_selection::<MyGenome>(5);
+    //let parent2 = pop.tournament_selection::<MyGenome>(5);
+    //println!("parent1: {}, parent2: {}", parent1, parent2);
 
-    let fitness = pop.calc_fitness::<MyGenome>();
-    println!("fitness:     {:?}", fitness);
-
-    // select
-
+    println!("--------------------------");
+    let mut next_pop = pop.reproduce::<MyGenome>(20, 5, 0.1);
+    next_pop.calc_fitness::<MyGenome>();
+    println!("next_pop:     {:?}", next_pop);
 /*
     let dna = bitvec_random(20);
     let genome: MyGenome = Genome::decode_from_bitvec(&dna);
