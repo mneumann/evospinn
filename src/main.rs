@@ -221,13 +221,6 @@ fn test_bitvec_from_u64() {
     assert_eq!(BitVec::from_elem(4, true), bv);
 }
 
-trait Genome {
-    fn encode_to_bitvec(&self) -> BitVec;
-    fn decode_from_bitvec(bv: &BitVec) -> Self;
-
-    /// Higher values are better
-    fn fitness(&self) -> f32;
-}
 
 /// `flip_prob` is the probablity that we flip a bit.
 fn mutate_dna(dna: &BitVec, flip_prob: f32) -> BitVec {
@@ -245,19 +238,85 @@ fn mutate_dna(dna: &BitVec, flip_prob: f32) -> BitVec {
 }
 
 #[derive(Debug)]
+struct Dna {
+    bits: BitVec
+}
+
+impl Dna {
+    fn with_capacity(capa: usize) -> Dna {
+        Dna {bits: BitVec::with_capacity(capa)}
+    }
+
+    fn new() -> Dna {
+        Dna {bits: BitVec::new()}
+    }
+
+    fn new_random(nbits: usize) -> Dna {
+        Dna {bits: bitvec_random(nbits)}
+    }
+
+    fn mutate(&self, flip_prob: f32) -> Dna {
+        Dna {bits: mutate_dna(&self.bits, flip_prob)}
+    }
+
+    fn push_nbits(&mut self, n: usize, value: usize) {
+        bitvec_push_bits(&mut self.bits, value, n);
+    }
+
+    fn crossover1(&self, other: &Dna) -> (Dna, Dna) {
+         let len = self.bits.len();
+         assert!(len == other.bits.len());
+         let mut res1 = Dna::with_capacity(len);
+         let mut res2 = Dna::with_capacity(len);
+
+         let mut rng = rand::thread_rng();
+         let between = XRange::new(0, len);
+
+         // `n': number of bits that are exchanged between the two dna's
+         let n = between.ind_sample(&mut rng);
+         assert!(n > 0 && n < len);
+
+         let mut i1 = self.bits.iter();
+         let mut i2 = other.bits.iter();
+
+         for _ in 0..n {
+             res1.bits.push(i2.next().unwrap());
+             res2.bits.push(i1.next().unwrap());
+         }
+         for _ in n..len {
+             res1.bits.push(i1.next().unwrap());
+             res2.bits.push(i2.next().unwrap());
+         }
+
+         (res1, res2)
+    }
+
+
+}
+
+trait Genome {
+    fn to_dna(&self) -> Dna;
+    fn from_dna(bv: &Dna) -> Self;
+
+    /// Higher values are better
+    fn fitness(&self) -> f32;
+}
+
+
+#[derive(Debug)]
 struct MyGenome {
     tau_m_k: time
 }
 
 impl Genome for MyGenome {
-    fn encode_to_bitvec(&self) -> BitVec {
-        let mut bv = BitVec::new();
-        bitvec_push_bits(&mut bv, self.tau_m_k as usize, 20);
-        bv
+    fn to_dna(&self) -> Dna {
+        let mut dna = Dna::new();
+        dna.push_nbits(20, self.tau_m_k as usize);
+        dna
     }
 
-    fn decode_from_bitvec(bv: &BitVec) -> MyGenome {
-        let mut it = bv.iter();
+    fn from_dna(dna: &Dna) -> MyGenome {
+        let mut it = dna.bits.iter();
         let value = bitvec_construct_value(&mut it, 20); 
         // XXX test that iterator is exhausted
         MyGenome {
@@ -291,38 +350,10 @@ impl Genome for MyGenome {
      }
 }
 
-fn one_point_xover(dna1: &BitVec, dna2: &BitVec) -> (BitVec, BitVec) {
-     assert!(dna1.len() == dna2.len());
-     let len = dna1.len();
-     let mut res1 = BitVec::with_capacity(len);
-     let mut res2 = BitVec::with_capacity(len);
-
-
-     let mut rng = rand::thread_rng();
-     let between = XRange::new(0, len);
-
-     // `n': number of bits that are exchanged between the two dna's
-     let n = between.ind_sample(&mut rng);
-     assert!(n > 0 && n < len);
-
-     let mut i1 = dna1.iter();
-     let mut i2 = dna2.iter();
-
-     for _ in 0..n {
-         res1.push(i2.next().unwrap());
-         res2.push(i1.next().unwrap());
-     }
-     for _ in n..len {
-         res1.push(i1.next().unwrap());
-         res2.push(i2.next().unwrap());
-     }
-
-     (res1, res2)
-}
 
 #[derive(Debug)]
 struct Generation {
-    pool: Vec<BitVec>
+    pool: Vec<Dna>
 }
 
 impl Generation {
@@ -330,8 +361,7 @@ impl Generation {
         let mut pool = Vec::with_capacity(pop_size);
 
         for _ in 0 .. pop_size {
-            let dna = bitvec_random(dna_len);
-            pool.push(dna);
+            pool.push(Dna::new_random(dna_len));
         }
 
         assert!(pool.len() == pop_size);
@@ -346,7 +376,7 @@ impl Generation {
     // For each member in the population calculate it's fitness.
     fn calc_fitness<T:Genome>(&self) -> Vec<f32> {
         self.pool.iter().by_ref().map(|dna| {
-            let genome: T = Genome::decode_from_bitvec(dna);
+            let genome: T = Genome::from_dna(dna);
             genome.fitness()
         }).collect()
     }
