@@ -8,6 +8,7 @@ use std::ops::Range;
 use std::collections::BitVec;
 use rand::distributions::IndependentSample;
 use rand::distributions::Range as XRange;
+use rand::{Rng, Open01, sample};
 use std::marker::PhantomData;
 use std::cmp::{PartialOrd, Ordering};
 
@@ -165,19 +166,6 @@ fn generate_net<R:Recorder>(tau_m_k: time) -> Net<R> {
     net
 }
 
-/// `nbits` signification number of bits
-/*
-fn bitvec_from_u64(n: u64, nbits: usize) -> BitVec {
-    match nbits {
-        1 ... 63 if n < (2u64 << nbits) => {}
-        64 => {}
-        _  => panic!()
-    }
-
-    BitVec::from_fn(nbits, |i| { (n >> i) & 1 == 1 })
-}
-*/
-
 /// Push the lower `nbits` bits of `value`, msb first.
 fn bitvec_push_bits(bv: &mut BitVec, value: usize, nbits: usize) {
     if nbits >= std::usize::BITS { panic!() }
@@ -211,32 +199,10 @@ where I::Item: BooleanLike {
     return value;
 }
 
-fn bitvec_random(nbits: usize) -> BitVec {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    BitVec::from_fn(nbits, |_| rng.gen())
-}
-
 #[test]
 fn test_bitvec_from_u64() {
     let bv = bitvec_from_u64(0b1111, 4);
     assert_eq!(BitVec::from_elem(4, true), bv);
-}
-
-
-/// `flip_prob` is the probablity that we flip a bit.
-fn mutate_dna(dna: &BitVec, flip_prob: f32) -> BitVec {
-    use rand::{Rng, Open01};
-
-    let mut rng = rand::thread_rng();
-    let mut mutant = BitVec::with_capacity(dna.len());
-
-    for bit in dna {
-        let Open01(r): Open01<f32> = rng.gen();
-        let bit = if r < flip_prob { !bit } else { bit };
-        mutant.push(bit);
-    }
-    mutant
 }
 
 #[derive(Debug,Clone)]
@@ -253,31 +219,38 @@ impl Dna {
         Dna {bits: BitVec::new()}
     }
 
-    fn new_random(nbits: usize) -> Dna {
-        Dna {bits: bitvec_random(nbits)}
+    fn new_random<R:Rng>(rng: &mut R, nbits: usize) -> Dna {
+        Dna {bits: BitVec::from_fn(nbits, |_| rng.gen())}
     }
 
-    fn mutate(&self, flip_prob: f32) -> Dna {
-        Dna {bits: mutate_dna(&self.bits, flip_prob)}
+    /// `flip_prob` is the probablity that we flip a bit.
+    fn mutate<R:Rng>(&self, rng: &mut R, flip_prob: f32) -> Dna {
+        let mut mutant = BitVec::with_capacity(self.bits.len());
+
+        for bit in self.bits.iter() {
+            let Open01(r): Open01<f32> = rng.gen();
+            let bit = if r < flip_prob { !bit } else { bit };
+            mutant.push(bit);
+        }
+
+        Dna {bits: mutant}
     }
 
     fn push_nbits(&mut self, n: usize, value: usize) {
         bitvec_push_bits(&mut self.bits, value, n);
     }
 
-    fn crossover1(&self, other: &Dna) -> (Dna, Dna) {
+    fn crossover1<R:Rng>(&self, rng: &mut R, other: &Dna) -> (Dna, Dna) {
          let len = self.bits.len();
          assert!(len == other.bits.len());
          assert!(len >= 2); // XXX: otherwise crossover does not make any sense
          let mut res1 = Dna::with_capacity(len);
          let mut res2 = Dna::with_capacity(len);
 
-         let mut rng = rand::thread_rng();
          let between = XRange::new(1, len);
 
          // `n': number of bits that are exchanged between the two dna's
-         let n = between.ind_sample(&mut rng);
-         //println!("n: {}, len: {}", n, len);
+         let n = between.ind_sample(rng);
          assert!(n > 0 && n < len);
 
          let mut i1 = self.bits.iter();
@@ -377,7 +350,7 @@ impl<G:Genome> Generation<G> {
         }
     }
 
-    pub fn fill<F:Fn() -> Dna>(&mut self, f: F) {
+    pub fn fill<F:FnMut() -> Dna>(&mut self, mut f: F) {
         while self.solutions.len() < self.max_pop_size {
             assert!(self.add(f()));
         }
@@ -417,14 +390,12 @@ impl<G:Genome> Generation<G> {
     }
 
     /// Select one solution out of k. Returns index.
-    fn tournament_selection(&mut self, k: usize) -> usize {
-        use rand::{thread_rng, sample};
+    fn tournament_selection<R:Rng>(&mut self, rng: &mut R, k: usize) -> usize {
         assert!(!self.solutions.is_empty());
 
         let mut best: Option<(usize, f32)> = None;
 
-        let mut rng = thread_rng();
-        let sample = sample(&mut rng, 0..self.solutions.len(), k);
+        let sample = sample(rng, 0..self.solutions.len(), k);
 
         for i in sample {
             let sol = &mut self.solutions[i];
@@ -438,22 +409,22 @@ impl<G:Genome> Generation<G> {
     }
 
     /// Creata a new generation of size `pop_size` based on the current generation.
-    pub fn reproduce(&mut self, pop_size: usize, tournament_size: usize, mutate_prob: f32) -> Generation<G> {
+    pub fn reproduce<R:Rng>(&mut self, rng: &mut R, pop_size: usize, tournament_size: usize, mutate_prob: f32) -> Generation<G> {
         assert!(!self.solutions.is_empty());
         self.sort();
         let mut new_gen: Generation<G> = Generation::new(pop_size);
         let _ = new_gen.add_solution(self.solutions[0].clone()); // add best solution
 
         loop {
-            let parent1 = self.tournament_selection(tournament_size);
+            let parent1 = self.tournament_selection(rng, tournament_size);
             let parent1 = self.solutions[parent1].clone();
-            let parent2 = self.tournament_selection(tournament_size);
+            let parent2 = self.tournament_selection(rng, tournament_size);
             let parent2 = self.solutions[parent2].clone();
 
-            let (child1, child2) = parent1.dna.crossover1(&parent2.dna);
+            let (child1, child2) = parent1.dna.crossover1(rng, &parent2.dna);
 
-            let child1 = child1.mutate(mutate_prob);
-            let child2 = child2.mutate(mutate_prob);
+            let child1 = child1.mutate(rng, mutate_prob);
+            let child2 = child2.mutate(rng, mutate_prob);
 
             if !new_gen.add_solution(parent1) { break }
             if !new_gen.add_solution(parent2) { break }
@@ -468,15 +439,19 @@ impl<G:Genome> Generation<G> {
 const POP_SIZE: usize = 100;
 
 fn main() {
+    use rand::SeedableRng;
+    use rand::isaac::Isaac64Rng;
+    let mut rng: Isaac64Rng = SeedableRng::from_seed(&[0, 1, 2][..]);
+
     // min/max
     let mut pop: Generation<MyGenome> = Generation::new(POP_SIZE);
-    pop.fill(|| Dna::new_random(20));
+    pop.fill(|| Dna::new_random(&mut rng, 20));
     println!("best:     {:?}", pop.best());
 
     for gen in 0..10 {
         println!("--------------------------");
         println!("Generation {}", gen);
-        pop = pop.reproduce(POP_SIZE, 3, 0.05);
+        pop = pop.reproduce(&mut rng, POP_SIZE, 3, 0.05);
         println!("best:     {:?}", pop.best());
         let genome = MyGenome::from_dna(&pop.best().dna);
         println!("genome:     {:?}", genome);
