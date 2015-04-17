@@ -9,6 +9,7 @@ use std::collections::BitVec;
 use rand::distributions::IndependentSample;
 use rand::distributions::Range as XRange;
 use std::marker::PhantomData;
+use std::cmp::{PartialOrd, Ordering};
 
 // From Optimierung-1/stimuli.txt
 
@@ -276,8 +277,8 @@ impl Dna {
 
          // `n': number of bits that are exchanged between the two dna's
          let n = between.ind_sample(&mut rng);
-         println!("n: {}, len: {}", n, len);
-         //assert!(n > 0 && n < len);
+         //println!("n: {}, len: {}", n, len);
+         assert!(n > 0 && n < len);
 
          let mut i1 = self.bits.iter();
          let mut i2 = other.bits.iter();
@@ -367,7 +368,7 @@ struct Generation<G:Genome> {
 }
 
 impl<G:Genome> Generation<G> {
-    fn new(max_pop_size: usize) -> Generation<G> {
+    pub fn new(max_pop_size: usize) -> Generation<G> {
         assert!(max_pop_size > 0);
         Generation {
             solutions: Vec::with_capacity(max_pop_size),
@@ -376,17 +377,26 @@ impl<G:Genome> Generation<G> {
         }
     }
 
-    fn fill<F:Fn() -> Dna>(&mut self, f: F) {
+    pub fn fill<F:Fn() -> Dna>(&mut self, f: F) {
         while self.solutions.len() < self.max_pop_size {
             assert!(self.add(f()));
         }
+    }
+
+    pub fn sort(&mut self) {
+        (&mut self.solutions[..]).sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap_or(Ordering::Equal).reverse());
+    }
+
+    pub fn best(&mut self) -> &Solution {
+        self.sort();
+        &self.solutions[0]
     }
 
     /// Adds a solution to the pool. Returns false if maximum population size is reached,
     /// in which case the solution is not added.
     ///
     /// TODO: keep the best solution
-    fn add(&mut self, dna: Dna) -> bool {
+    pub fn add(&mut self, dna: Dna) -> bool {
         if self.solutions.len() < self.max_pop_size {
              let genome: G = Genome::from_dna(&dna);
              let fitness = genome.fitness();
@@ -428,9 +438,12 @@ impl<G:Genome> Generation<G> {
     }
 
     /// Creata a new generation of size `pop_size` based on the current generation.
-    fn reproduce(&mut self, pop_size: usize, tournament_size: usize, mutate_prob: f32) -> Generation<G> {
+    pub fn reproduce(&mut self, pop_size: usize, tournament_size: usize, mutate_prob: f32) -> Generation<G> {
         assert!(!self.solutions.is_empty());
+        self.sort();
         let mut new_gen: Generation<G> = Generation::new(pop_size);
+        let _ = new_gen.add_solution(self.solutions[0].clone()); // add best solution
+
         loop {
             let parent1 = self.tournament_selection(tournament_size);
             let parent1 = self.solutions[parent1].clone();
@@ -452,28 +465,20 @@ impl<G:Genome> Generation<G> {
     }
 }
 
+const POP_SIZE: usize = 100;
+
 fn main() {
     // min/max
-    let mut pop: Generation<MyGenome> = Generation::new(20);
+    let mut pop: Generation<MyGenome> = Generation::new(POP_SIZE);
     pop.fill(|| Dna::new_random(20));
-    println!("pop:     {:?}", pop);
-    //let parent1 = pop.tournament_selection::<MyGenome>(5);
-    //let parent2 = pop.tournament_selection::<MyGenome>(5);
-    //println!("parent1: {}, parent2: {}", parent1, parent2);
+    println!("best:     {:?}", pop.best());
 
-    println!("--------------------------");
-    let mut next_pop = pop.reproduce(20, 5, 0.1);
-    println!("next_pop:     {:?}", next_pop);
-/*
-    let dna = bitvec_random(20);
-    let genome: MyGenome = Genome::decode_from_bitvec(&dna);
-    let fitness = genome.fitness();
-
-    println!("dna:     {:?}", dna);
-    println!("genome:  {:?}", genome);
-    println!("fitness: {:?}", fitness);
-
-    let new_dna = mutate_dna(&dna, 0.1);
-    println!("new_dna: {:?}", new_dna);
-*/
+    for gen in 0..10 {
+        println!("--------------------------");
+        println!("Generation {}", gen);
+        pop = pop.reproduce(POP_SIZE, 3, 0.05);
+        println!("best:     {:?}", pop.best());
+        let genome = MyGenome::from_dna(&pop.best().dna);
+        println!("genome:     {:?}", genome);
+    }
 }
