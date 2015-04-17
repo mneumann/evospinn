@@ -74,7 +74,7 @@ impl Recorder for FitnessRecorder {
     }
 }
 
-fn generate_net<R:Recorder>(tau_m_k: time) -> Net<R> {
+fn generate_net<R:Recorder>(tau_m_k: time, delay1: time, delay2: time, delay3: time, delay4: time, delay5: time, delay6: time) -> Net<R> {
     let mut net = Net::new();
 
     let input_neuron_template = NeuronConfig {
@@ -149,13 +149,19 @@ fn generate_net<R:Recorder>(tau_m_k: time) -> Net<R> {
     net.create_synapse(n_k1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_output1});
     net.create_synapse(n_k2, Synapse {delay: us(0), weight: 1.0, post_neuron: n_output2});
 
-    net.create_synapse(n_innerinp0, Synapse {delay: us(625), weight: 1.0, post_neuron: n_k0});
-    net.create_synapse(n_innerinp0, Synapse {delay: ns(15_625), weight: 1.0, post_neuron: n_k1});
-    net.create_synapse(n_innerinp0, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k2});
+    // delay1: us(625),
+    // delay2: ns(15_625)
+    // delay3: us(0)
+    // delay4: us(0)
+    // delay5: us(0)
+    // delay6: ns(593_750)
+    net.create_synapse(n_innerinp0, Synapse {delay: delay1, weight: 1.0, post_neuron: n_k0});
+    net.create_synapse(n_innerinp0, Synapse {delay: delay2, weight: 1.0, post_neuron: n_k1});
+    net.create_synapse(n_innerinp0, Synapse {delay: delay3, weight: 1.0, post_neuron: n_k2});
 
-    net.create_synapse(n_innerinp1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k0});
-    net.create_synapse(n_innerinp1, Synapse {delay: us(0), weight: 1.0, post_neuron: n_k1});
-    net.create_synapse(n_innerinp1, Synapse {delay: ns(593_750), weight: 1.0, post_neuron: n_k2});
+    net.create_synapse(n_innerinp1, Synapse {delay: delay4, weight: 1.0, post_neuron: n_k0});
+    net.create_synapse(n_innerinp1, Synapse {delay: delay5, weight: 1.0, post_neuron: n_k1});
+    net.create_synapse(n_innerinp1, Synapse {delay: delay6, weight: 1.0, post_neuron: n_k2});
 
     net.name_neuron(n_output0, "output0");
     net.name_neuron(n_output1, "output1");
@@ -282,28 +288,52 @@ trait Genome {
 
 #[derive(Debug)]
 struct MyGenome {
-    tau_m_k: time
+    tau_m_k: time, // 46_875
+    delay1: time,
+    delay2: time,
+    delay3: time,
+    delay4: time,
+    delay5: time,
+    delay6: time,
 }
 
 impl Genome for MyGenome {
     fn to_dna(&self) -> Dna {
         let mut dna = Dna::new();
         dna.push_nbits(20, self.tau_m_k as usize);
+        dna.push_nbits(20, self.delay1 as usize);
+        dna.push_nbits(20, self.delay2 as usize);
+        dna.push_nbits(20, self.delay3 as usize);
+        dna.push_nbits(20, self.delay4 as usize);
+        dna.push_nbits(20, self.delay5 as usize);
+        dna.push_nbits(20, self.delay6 as usize);
         dna
     }
 
     fn from_dna(dna: &Dna) -> MyGenome {
         let mut it = dna.bits.iter();
-        let value = bitvec_construct_value(&mut it, 20); 
         // XXX test that iterator is exhausted
         MyGenome {
-            tau_m_k: value as time
+            tau_m_k: bitvec_construct_value(&mut it, 20) as time,
+            delay1: bitvec_construct_value(&mut it, 20) as time,
+            delay2: bitvec_construct_value(&mut it, 20) as time,
+            delay3: bitvec_construct_value(&mut it, 20) as time,
+            delay4: bitvec_construct_value(&mut it, 20) as time,
+            delay5: bitvec_construct_value(&mut it, 20) as time,
+            delay6: bitvec_construct_value(&mut it, 20) as time,
         }
     }
 
     fn fitness(&self) -> f32 {
-        //let mut net = generate_net(ns(46_875));
-        let mut net = generate_net(ns(self.tau_m_k));
+        let mut net = generate_net(
+            ns(self.tau_m_k),
+            ns(self.delay1),
+            ns(self.delay2),
+            ns(self.delay3),
+            ns(self.delay4),
+            ns(self.delay5),
+            ns(self.delay6),
+        );
 
         let mut fitness = Box::new(FitnessRecorder::new());
         fitness.add_correct_range(net.lookup_neuron("output0"), ms(0) .. ms(47));
@@ -441,11 +471,11 @@ const POP_SIZE: usize = 100;
 fn main() {
     use rand::SeedableRng;
     use rand::isaac::Isaac64Rng;
-    let mut rng: Isaac64Rng = SeedableRng::from_seed(&[0, 1, 2][..]);
+    let mut rng: Isaac64Rng = SeedableRng::from_seed(&[0, 1, 2, 3][..]);
 
     // min/max
     let mut pop: Generation<MyGenome> = Generation::new(POP_SIZE);
-    pop.fill(|| Dna::new_random(&mut rng, 20));
+    pop.fill(|| Dna::new_random(&mut rng, 140));
     println!("best:     {:?}", pop.best());
 
     for gen in 0..10 {
@@ -454,6 +484,6 @@ fn main() {
         pop = pop.reproduce(&mut rng, POP_SIZE, 3, 0.05);
         println!("best:     {:?}", pop.best());
         let genome = MyGenome::from_dna(&pop.best().dna);
-        println!("genome:     {:?}", genome);
+        println!("genome:   {:?}", genome);
     }
 }
