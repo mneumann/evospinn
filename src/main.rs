@@ -1,11 +1,12 @@
-#![feature(collections,core)]
+#![feature(num_bits_bytes)]
 extern crate evospinn;
 
 extern crate rand;
+extern crate bit_vec;
 
 use evospinn::*;
 use std::ops::Range;
-use std::collections::BitVec;
+use bit_vec::BitVec;
 use rand::distributions::IndependentSample;
 use rand::distributions::Range as XRange;
 use rand::{Rng, Open01, sample};

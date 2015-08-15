@@ -6,3 +6,4 @@ authors = ["Michael Neumann <mneumann@ntecs.de>"]
 [dependencies]
 log = "0.3"
 rand = "0.3"
+bit-vec = "*"
